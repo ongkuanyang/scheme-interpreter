@@ -3,9 +3,9 @@ import Control.Monad (liftM, ap)
 
 data Exp = Num Int | Var Name | Quote String | Assign Name Exp | Define Name Exp |
            If Exp Exp Exp | Lambda [Name] Exp | Begin [Exp] | Cond [CondP] |
-           App Exp [Exp]
+           App Exp [Exp] | Prim ([Value] -> Value)
 
-data Value = Fun (EvalM [Value] -> EvalM Value) | Prim ([Value] -> Value) |
+data Value = Fun (EvalM [Value] -> EvalM Value) | PrimV ([Value] -> Value) |
              NumV Int | QuoteV String | BoolV Bool
 
 data CondP = Exp Exp
@@ -60,9 +60,11 @@ eval (App op operands) =
                 readEnv >>= \env ->
                               case f of
                                 Fun func -> func $ mapM (inEnv env . eval) operands
-                                Prim func -> (mapM (inEnv env . eval) operands)
+                                PrimV func -> (mapM (inEnv env . eval) operands)
                                              >>= \vals -> (return . func) vals
-                                                          
+
+eval (Prim x) = return (PrimV x)
+
 eval _ = err "Invalid expression!"
 
 true (BoolV False) = False
@@ -138,7 +140,7 @@ instance Monad m => ErrMonad (ErrorT m) where
 
 -- Lifting of err
 
-instance (ErrMonad m) => ErrMonad (EnvT env  m) where
+instance (ErrMonad m) => ErrMonad (EnvT env m) where
   err = lift . err
 
 instance Monad m => Functor (ErrorT m) where
@@ -160,7 +162,12 @@ test x = let EnvM a = eval x
 --Show val
 
 showval (Fun _) = "Function"
-showval (Prim _) = "Primitive function"
+showval (PrimV _) = "Primitive function"
 showval (NumV x) = show x
 showval (QuoteV x) = x
 showval (BoolV x) = show x
+
+-- Primitive functions
+
+add (NumV x : xs) = let NumV y = add xs in NumV (x + y)
+add [] = NumV 0
