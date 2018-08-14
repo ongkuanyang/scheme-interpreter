@@ -35,7 +35,7 @@ eval (Assign name exp) = readEnv >>= \env ->
                                            (return (QuoteV "ok"))
 
 eval (Define name exp) = readEnv >>= \env ->
-                                       inEnv (extendEnv ([name], [inEnv env (eval exp)]) env)
+                                       inEnv (let newenv = (extendEnv ([name], [inEnv newenv (eval exp)]) env) in newenv)
                                            (return (QuoteV "ok"))
 
 eval (If pred consq alt) = eval pred >>= \p -> if true p then eval consq else eval alt
@@ -56,8 +56,8 @@ eval (Begin (exp:exps)) = eval exp >> eval (Begin exps)
 --eval s@(Cond _) = eval (condtoif s)
 
 eval (App op operands) =
-  eval op >>= \f ->
-                readEnv >>= \env ->
+  readEnv >>= \env ->
+                eval op >>= \f ->
                               case f of
                                 Fun func -> func $ mapM (inEnv env . eval) operands
                                 PrimV func -> (mapM (inEnv env . eval) operands)
@@ -138,19 +138,19 @@ class Monad m => ErrMonad m where
 instance Monad m => ErrMonad (ErrorT m) where 
   err  = ErrorM . return . Error
 
--- Lifting of err
-
-instance (ErrMonad m) => ErrMonad (EnvT env m) where
-  err = lift . err
-
 instance Monad m => Functor (ErrorT m) where
   fmap = liftM
 
 instance Monad m => Applicative (ErrorT m) where
   pure = return
-  (<*>) = ap
+  (<*>) = ap  
 
--- Test run EvalM
+-- Lifting of err
+
+instance (ErrMonad m) => ErrMonad (EnvT env m) where
+  err = lift . err
+
+-- Test run eval
 test :: Exp -> String
 test x = let EnvM a = eval x
              ErrorM b = a (Env [])
@@ -171,3 +171,11 @@ showval (BoolV x) = show x
 
 add (NumV x : xs) = let NumV y = add xs in NumV (x + y)
 add [] = NumV 0
+
+multiply (NumV x : xs) = let NumV y = add xs in NumV (x * y)
+multiply [] = NumV 1
+
+difference (NumV x : xs) = let NumV y = difference xs in NumV (x - y)
+difference [] = NumV 0
+
+eq (NumV x : NumV y : _) = if x == y then BoolV True else BoolV False

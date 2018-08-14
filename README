@@ -6,3 +6,6 @@ The use of monad transformers allows for the abstracting away of error and envir
 Test command:
 > test (App (Lambda ["x"] (App (Prim add) [Var "x", Var "x"])) [Num 2])
 > "4"
+
+> test (Begin [(Define "factorial" (Lambda ["x"] (If (App (Prim eq) [Var "x", Num 1]) (Num 1) (App (Prim multiply) [Var "x", (App (Var "factorial") [App (Prim difference) [Var "x", Num 1]])])))), (App (Var "factorial") [Num 5])])
+> "120"
